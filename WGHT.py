@@ -168,7 +168,7 @@ def init_ble_mode():
         return False
 
 config = ConfigParser()
-config.read('/home/pi/Start/BS430/BS430.ini')
+config.read('/home/pi/Start/WGHT/WGHT.ini')
 path = "plugins/"
 plugins = {}
 
@@ -197,7 +197,7 @@ else:
     addresstype = pygatt.BLEAddressType.random
     time_offset = 0
 
-log.info('BS430 Started')
+log.info('WGHT Started')
 if not init_ble_mode():
     sys.exit()
 
