@@ -14,11 +14,11 @@ import urllib.parse
 
 # Plugin Code
 class Plugin:
-    def __init__(self):
+    def __init__(self, config):
         self.config = config
         self.http = urllib3.PoolManager()
 
-    def execute(self, globalconfig, persondata, weightdata, bodydata):
+    def execute(self, persondata, weightdata, bodydata):
         log = logging.getLogger('WGHT')
         log.info('Starting plugin: WGHT')
         
