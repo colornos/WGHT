@@ -168,7 +168,7 @@ def init_ble_mode():
         return False
 
 config = ConfigParser()
-config.read('/home/pi/Start/WGHT/WGHT.ini')
+config.read('/home/pi/Start/WGHT/WGHTPlugin.ini')
 
 # Logging setup
 numeric_level = getattr(logging, config.get('Program', 'loglevel').upper(), None)
