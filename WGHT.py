@@ -14,11 +14,11 @@ import urllib.parse
 
 # Plugin Code
 class Plugin:
-    def __init__(self, config):
+    def __init__(self):
         self.config = config
         self.http = urllib3.PoolManager()
 
-    def execute(self, persondata, weightdata, bodydata):
+    def execute(self, config, persondata, weightdata, bodydata):
         log = logging.getLogger('WGHT')
         log.info('Starting plugin: WGHT')
         
@@ -203,7 +203,7 @@ if not init_ble_mode():
 adapter = pygatt.backends.GATTToolBackend()
 adapter.start()
 
-plugin = Plugin(config)
+plugin = Plugin()
 
 # Main loop
 while True:
@@ -257,6 +257,6 @@ while True:
                     appendBmi(persondata[0]['size'], weightdata)
                     bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
 
-                    plugin.execute(persondata, weightdatasorted, bodydatasorted)  
+                    plugin.execute(config, persondata, weightdatasorted, bodydatasorted)  
                 else:
                     log.error('Unreliable data received. Unable to process')
