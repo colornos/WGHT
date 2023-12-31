@@ -256,6 +256,4 @@ while True:
                     appendBmi(persondata[0]['size'], weightdata)
                     bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
 
-                    plugin.execute(config, persondata, weightdatasorted, bodydatasorted)  
-                else:
-                    log.error('Unreliable data received. Unable to process')
+                    plugin.execute(config, persondata, weightdatasorted, bodydatasorted)
