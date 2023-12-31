@@ -203,7 +203,7 @@ if not init_ble_mode():
 adapter = pygatt.backends.GATTToolBackend()
 adapter.start()
 
-plugin = Plugin(config)  # Instantiate the plugin
+plugin = Plugin(config)
 
 # Main loop
 while True:
