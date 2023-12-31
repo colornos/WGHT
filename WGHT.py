@@ -36,7 +36,7 @@ class Plugin:
         else:
             weight = weightdata[0]['weight']  # Retrieve the latest weight value
             headers = {
-                'User-Agent': 'RaspberryPi/BS430.py',
+                'User-Agent': 'RaspberryPi/WGHT.py',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
             form_data = {'rfid': rfid, 'one': weight}
@@ -169,9 +169,8 @@ def init_ble_mode():
 
 config = ConfigParser()
 config.read('/home/pi/Start/WGHT/WGHT.ini')
-path = "plugins/"
-plugins = {}
 
+# Logging setup
 numeric_level = getattr(logging, config.get('Program', 'loglevel').upper(), None)
 if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
@@ -183,10 +182,12 @@ formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(funcName)s %(messag
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
+# BLE device configuration
 ble_address = config.get('Scale', 'ble_address')
 device_name = config.get('Scale', 'device_name')
 device_model = config.get('Scale', 'device_model')
 
+# Set BLE address type and time offset based on the device model
 if device_model == 'BS410':
     addresstype = pygatt.BLEAddressType.public
     time_offset = 1262304000
@@ -197,15 +198,19 @@ else:
     addresstype = pygatt.BLEAddressType.random
     time_offset = 0
 
+# Start script and initialize BLE mode
 log.info('WGHT Started')
 if not init_ble_mode():
     sys.exit()
 
+# Initialize BLE adapter
 adapter = pygatt.backends.GATTToolBackend()
 adapter.start()
 
-plugin = Plugin()  # Instantiate the plugin
+# Instantiate the Plugin class
+plugin = Plugin()
 
+# Main loop
 while True:
     wait_for_device(device_name)
     device = connect_device(ble_address)
@@ -223,7 +228,8 @@ while True:
             log.warning('Error getting handles')
             continue_comms = False
 
-        if not continue_comms: continue
+        if not continue_comms:
+            continue
 
         try:
             device.subscribe(Char_weight, callback=processIndication, indication=True)
