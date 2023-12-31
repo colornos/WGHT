@@ -15,16 +15,12 @@ import urllib.parse
 # Plugin Code
 class Plugin:
     def __init__(self):
+        self.config = config
         self.http = urllib3.PoolManager()
 
     def execute(self, globalconfig, persondata, weightdata, bodydata):
-        log = logging.getLogger(__name__)
-        log.info('Starting plugin: ' + __name__)
-        
-        configfile = os.path.dirname(os.path.realpath(__file__)) + '/' + __name__ + '.ini'
-        pluginconfig = ConfigParser()
-        pluginconfig.read(configfile)
-        log.info('ini read from: ' + configfile)
+        log = logging.getLogger('WGHT')
+        log.info('Starting plugin: WGHT')
         
         with open("/home/pi/Start/rfid.txt", "r") as f1:
             rfid = f1.read().strip()
@@ -45,7 +41,7 @@ class Plugin:
             response = r.data.decode('utf-8')
             with open("/home/pi/Start/plugin_response.txt", "w") as f2:
                 f2.write(response)
-            log.info('Finished plugin: ' + __name__)
+            log.info('Finished plugin: WGHT')
             return response
 
 # Main Script Code
@@ -207,8 +203,7 @@ if not init_ble_mode():
 adapter = pygatt.backends.GATTToolBackend()
 adapter.start()
 
-# Instantiate the Plugin class
-plugin = Plugin()
+plugin = Plugin(config)  # Instantiate the plugin
 
 # Main loop
 while True:
@@ -262,6 +257,6 @@ while True:
                     appendBmi(persondata[0]['size'], weightdata)
                     bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
 
-                    plugin.execute(config, persondata, weightdatasorted, bodydatasorted)  # Call execute on the plugin instance directly
+                    plugin.execute(persondata, weightdatasorted, bodydatasorted)  
                 else:
                     log.error('Unreliable data received. Unable to process')
