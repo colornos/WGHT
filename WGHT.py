@@ -264,73 +264,88 @@ adapter.start()
 
 plugin = Plugin()
 CHECK_INTERVAL = 10  # seconds
+MAX_RETRY_COUNT = 3  # Maximum number of retries for connecting to the sensor
+RETRY_DELAY = 5  # Delay in seconds between retries
+ADAPTER_RESET_DELAY = 10  # Delay after resetting the BLE adapter
 
 # Main loop
 while True:
     try:
-        # Check if the sensor is available
         if wait_for_device(device_name, timeout=15):
-            # Attempt to connect to the sensor
-            device = connect_device(ble_address)
-            if device is not None:
-                persondata = []
-                weightdata = []
-                bodydata = []
-                try:
-                    handle_person = device.get_handle(Char_person)
-                    handle_weight = device.get_handle(Char_weight)
-                    handle_body = device.get_handle(Char_body)
-                    handle_command = device.get_handle(Char_command)
-                    continue_comms = True
-                except pygatt.exceptions.NotConnectedError:
-                    log.warning('Error getting handles')
-                    continue_comms = False
-
-                if not continue_comms:
-                    continue
-
-                try:
-                    device.subscribe(Char_weight, callback=processIndication, indication=True)
-                    device.subscribe(Char_body, callback=processIndication, indication=True)
-                    device.subscribe(Char_person, callback=processIndication, indication=True)
-                except pygatt.exceptions.NotConnectedError:
-                    continue_comms = False
-
-                if continue_comms:
-                    timestamp = bytearray(pack('<I', int(time.time() - time_offset)))
-                    timestamp.insert(0, 2)
+            retry_count = 0
+            while retry_count < MAX_RETRY_COUNT:
+                device = connect_device(ble_address)
+                if device:
+                    persondata = []
+                    weightdata = []
+                    bodydata = []
                     try:
-                        device.char_write_handle(handle_command, timestamp, wait_for_response=True)
-                    except pygatt.exceptions.NotificationTimeout:
-                        pass
+                        handle_person = device.get_handle(Char_person)
+                        handle_weight = device.get_handle(Char_weight)
+                        handle_body = device.get_handle(Char_body)
+                        handle_command = device.get_handle(Char_command)
+                        continue_comms = True
+                    except pygatt.exceptions.NotConnectedError:
+                        log.warning('Error getting handles')
+                        continue_comms = False
+
+                    if not continue_comms:
+                        break
+
+                    try:
+                        device.subscribe(Char_weight, callback=processIndication, indication=True)
+                        device.subscribe(Char_body, callback=processIndication, indication=True)
+                        device.subscribe(Char_person, callback=processIndication, indication=True)
                     except pygatt.exceptions.NotConnectedError:
                         continue_comms = False
 
                     if continue_comms:
-                        log.info('Waiting for notifications for another 30 seconds')
-                        time.sleep(30)
-                        # Insert additional code for handling the scale data here if necessary
-
+                        timestamp = bytearray(pack('<I', int(time.time() - time_offset)))
+                        timestamp.insert(0, 2)
                         try:
-                            device.disconnect()
+                            device.char_write_handle(handle_command, timestamp, wait_for_response=True)
+                        except pygatt.exceptions.NotificationTimeout:
+                            pass
                         except pygatt.exceptions.NotConnectedError:
-                            log.info('Sensor disconnected or not reachable.')
+                            continue_comms = False
 
-                        log.info('Done receiving data from scale')
-                        if persondata and weightdata and bodydata:
-                            weightdatasorted = sorted(weightdata, key=lambda k: k['timestamp'], reverse=True)
-                            appendBmi(persondata[0]['size'], weightdata)
-                            bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
+                        if continue_comms:
+                            log.info('Waiting for notifications for another 30 seconds')
+                            time.sleep(30)
+                            # Insert additional code for handling the scale data here if necessary
 
-                            plugin.execute(config, persondata, weightdatasorted, bodydatasorted)
+                            try:
+                                device.disconnect()
+                            except pygatt.exceptions.NotConnectedError:
+                                log.info('Sensor disconnected or not reachable.')
 
-            else:
-                log.warning("Sensor found but unable to connect. Will retry later.")
+                            log.info('Done receiving data from scale')
+                            if persondata and weightdata and bodydata:
+                                weightdatasorted = sorted(weightdata, key=lambda k: k['timestamp'], reverse=True)
+                                appendBmi(persondata[0]['size'], weightdata)
+                                bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
+
+                                plugin.execute(config, persondata, weightdatasorted, bodydatasorted)
+
+                        break  # Successful operation, exit retry loop
+                    else:
+                        retry_count += 1
+                        log.warning(f"Retry {retry_count} for connecting to the sensor.")
+                        time.sleep(RETRY_DELAY)
+
+                if retry_count >= MAX_RETRY_COUNT:
+                    log.error("Max retries reached. Unable to connect to the sensor.")
+                    break
+
         else:
             log.debug("Sensor not active. Will check again later.")
 
-        # Wait for a while before checking again to reduce resource usage
-        time.sleep(CHECK_INTERVAL)  # CHECK_INTERVAL can be a few minutes
+        time.sleep(CHECK_INTERVAL)
+
+    except pygatt.exceptions.BLEError as ble_error:
+        log.error(f"BLE Error encountered: {ble_error}. Resetting adapter.")
+        adapter.reset()
+        time.sleep(ADAPTER_RESET_DELAY)
     except Exception as e:
         log.error(f"An error occurred: {e}")
-        time.sleep(ERROR_RECOVERY_DELAY)  # Delay before retrying
+        time.sleep(ERROR_RECOVERY_DELAY)
