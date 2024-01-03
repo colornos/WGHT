@@ -171,7 +171,7 @@ def wait_for_device(devname):
         try:
             found = adapter.filtered_scan(devname)
             if found:
-                log.info(f"Device {devname} found.")
+                log.info(f"{devname} found.")
                 break  # Exit the loop once the device is found
             else:
                 log.debug(f"{devname} not found.")
