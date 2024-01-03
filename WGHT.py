@@ -174,7 +174,7 @@ def wait_for_device(devname):
                 log.info(f"Device {devname} found.")
                 break  # Exit the loop once the device is found
             else:
-                log.debug(f"Device {devname} not found. Retrying...")
+                log.debug(f"Device {devname} not found.")
             time.sleep(1)  # Sleep for 1 second before retrying
         except pygatt.exceptions.BLEError as e:
             log.error(f"BLE error encountered: {e}. Resetting adapter.")
