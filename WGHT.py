@@ -165,7 +165,7 @@ def processIndication(handle, values):
     else:
         log.debug('Unhandled Indication encountered')
 
-def wait_for_device(devname, timeout=30):
+def wait_for_device(devname, timeout=1800):
     found = False
     start_time = time.time()
 
@@ -191,7 +191,7 @@ def wait_for_device(devname, timeout=30):
 
 def connect_device(address):
     device_connected = False
-    tries = 3
+    tries = 5
     device = None
     while not device_connected and tries > 0:
         try:
