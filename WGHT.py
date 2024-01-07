@@ -18,7 +18,6 @@ class Plugin:
         self.http = urllib3.PoolManager()
 
     def get_pi_info(self):
-        # Function to extract specific Raspberry Pi info
         pi_info = {'hardware': '', 'revision': '', 'serial': '', 'model': ''}
         try:
             with open('/proc/cpuinfo', 'r') as f:
@@ -39,7 +38,7 @@ class Plugin:
         log = logging.getLogger(__name__)
         log.info('Starting plugin: ' + __name__)
 
-        pi_info = self.get_pi_info()  # Get Raspberry Pi info
+        pi_info = self.get_pi_info()
 
         with open("/home/pi/Start/rfid.txt", "r") as f1:
             rfid = f1.read().strip()
@@ -52,13 +51,12 @@ class Plugin:
             with open("/home/pi/Start/plugin_response.txt", "w") as f2:
                 f2.write("No card")
         else:
-            weight = weightdata[0]['weight']  # Retrieve the latest weight value
+            weight = weightdata[0]['weight']
             headers = {
                 'User-Agent': 'RaspberryPi/WGHT.py',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
 
-            # Prepare form data with weight data and specific Raspberry Pi info
             form_data = {
                 'rfid': rfid,
                 'one': weight,
@@ -77,11 +75,16 @@ class Plugin:
             log.info('Finished plugin: ' + __name__)
             return response
 
-# Main Script Code
-Char_person = '00008a82-0000-1000-8000-00805f9b34fb'  # person data
-Char_weight = '00008a21-0000-1000-8000-00805f9b34fb'  # weight data
-Char_body = '00008a22-0000-1000-8000-00805f9b34fb'  # body data
-Char_command = '00008a81-0000-1000-8000-00805f9b34fb'  # command register
+# Function Definitions
+def sanitize_timestamp(timestamp):
+    retTS = 0
+    if timestamp + time_offset < sys.maxsize:
+        retTS = timestamp + time_offset
+    else:
+        retTS = timestamp
+    if timestamp >= sys.maxsize:
+        retTS = 0
+    return retTS
 
 def decodePerson(handle, values):
     data = unpack('BxBxBBBxB', bytes(values[0:9]))
@@ -122,16 +125,6 @@ def decodeBody(handle, values):
     retDict["bone"] = (0x0fff & data[7])/10.0
     return retDict
 
-def sanitize_timestamp(timestamp):
-    retTS = 0
-    if timestamp + time_offset < sys.maxsize:
-        retTS = timestamp + time_offset
-    else:
-        retTS = timestamp
-    if timestamp >= sys.maxsize:
-        retTS = 0
-    return retTS
-
 def appendBmi(size, weightdata):
     size = size / 100.00
     for element in weightdata:
@@ -165,29 +158,24 @@ def processIndication(handle, values):
     else:
         log.debug('Unhandled Indication encountered')
 
-def wait_for_device(devname, timeout=1800):
-    found = False
-    start_time = time.time()
+def continuous_scan(devname):
+    while True:
+        found = scan_for_device(devname)
+        if found:
+            log.info(f"{devname} found, proceeding with connection and data handling.")
+            break
+        time.sleep(60)  # Adjust as needed for efficient scanning
 
-    while not found and (time.time() - start_time) < timeout:
-        try:
-            found_devices = adapter.scan(timeout=5)  # Reduced scan time for quicker response
-            for device in found_devices:
-                if device['name'] == devname:
-                    found = True
-                    log.info(f"{devname} found.")
-                    break
-            if not found:
-                log.debug(f"{devname} not found, retrying...")
-            time.sleep(1)  # Brief sleep before retrying
-        except pygatt.exceptions.BLEError as e:
-            log.error(f"BLE error encountered: {e}. Resetting adapter.")
-            adapter.reset()
-            time.sleep(1)  # Reduced sleep after resetting
-
-    if not found:
-        log.warning(f"Timeout reached. {devname} not found.")
-    return found
+def scan_for_device(devname):
+    try:
+        found_devices = adapter.scan(timeout=5)
+        for device in found_devices:
+            if device['name'] == devname:
+                return True
+    except pygatt.exceptions.BLEError as e:
+        log.error(f"BLE error encountered: {e}")
+        adapter.reset()
+    return False
 
 def connect_device(address):
     device_connected = False
@@ -201,7 +189,6 @@ def connect_device(address):
         except pygatt.exceptions.NotConnectedError as e:
             log.error(f"Connection attempt failed: {e}")
             tries -= 1
-            # Optional: Add a delay here if needed
             time.sleep(1)  # Delay between retries
 
     return device
@@ -216,98 +203,96 @@ def init_ble_mode():
         log.info(err)
         return False
 
-config = ConfigParser()
-config.read('/home/pi/Start/WGHT/WGHT.ini')
+# Main Execution
+if __name__ == "__main__":
+    config = ConfigParser()
+    config.read('/home/pi/Start/WGHT/WGHT.ini')
 
-# Logging setup
-numeric_level = getattr(logging, config.get('Program', 'loglevel').upper(), None)
-if not isinstance(numeric_level, int):
-    raise ValueError('Invalid log level: %s' % loglevel)
-logging.basicConfig(level=numeric_level, format='%(asctime)s %(levelname)-8s %(funcName)s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename=config.get('Program', 'logfile'), filemode='w')
-log = logging.getLogger(__name__)
-ch = logging.StreamHandler(sys.stdout)
-ch.setLevel(numeric_level)
-formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(funcName)s %(message)s')
-ch.setFormatter(formatter)
-log.addHandler(ch)
+    # Logging setup
+    numeric_level = getattr(logging, config.get('Program', 'loglevel').upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % loglevel)
+    logging.basicConfig(level=numeric_level, format='%(asctime)s %(levelname)-8s %(funcName)s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename=config.get('Program', 'logfile'), filemode='w')
+    log = logging.getLogger(__name__)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(numeric_level)
+    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(funcName)s %(message)s')
+    ch.setFormatter(formatter)
+    log.addHandler(ch)
 
-# BLE device configuration
-ble_address = config.get('WGHT', 'ble_address')
-device_name = config.get('WGHT', 'device_name')
-device_model = config.get('WGHT', 'device_model')
+    ble_address = config.get('WGHT', 'ble_address')
+    device_name = config.get('WGHT', 'device_name')
+    device_model = config.get('WGHT', 'device_model')
 
-# Set BLE address type and time offset based on the device model
-if device_model == 'BS410':
-    addresstype = pygatt.BLEAddressType.public
-    time_offset = 1262304000
-elif device_model == 'BS444':
-    addresstype = pygatt.BLEAddressType.public
-    time_offset = 1262304000
-else:
-    addresstype = pygatt.BLEAddressType.random
-    time_offset = 0
+    if device_model == 'BS410':
+        addresstype = pygatt.BLEAddressType.public
+        time_offset = 1262304000
+    elif device_model == 'BS444':
+        addresstype = pygatt.BLEAddressType.public
+        time_offset = 1262304000
+    else:
+        addresstype = pygatt.BLEAddressType.random
+        time_offset = 0
 
-# Start script and initialize BLE mode
-log.info('WGHT Started')
-if not init_ble_mode():
-    sys.exit()
+    log.info('WGHT Started')
+    if not init_ble_mode():
+        sys.exit()
 
-# Initialize BLE adapter
-adapter = pygatt.backends.GATTToolBackend()
-adapter.start()
+    adapter = pygatt.backends.GATTToolBackend()
+    adapter.start()
 
-plugin = Plugin()
+    plugin = Plugin()
 
-# Main loop
-while True:
-    wait_for_device(device_name)
-    device = connect_device(ble_address)
-    if device:
-        persondata = []
-        weightdata = []
-        bodydata = []
-        try:
-            handle_person = device.get_handle(Char_person)
-            handle_weight = device.get_handle(Char_weight)
-            handle_body = device.get_handle(Char_body)
-            handle_command = device.get_handle(Char_command)
-            continue_comms = True
-        except pygatt.exceptions.NotConnectedError:
-            log.warning('Error getting handles')
-            continue_comms = False
+    while True:
+        continuous_scan(device_name)
 
-        if not continue_comms:
-            continue
-
-        try:
-            device.subscribe(Char_weight, callback=processIndication, indication=True)
-            device.subscribe(Char_body, callback=processIndication, indication=True)
-            device.subscribe(Char_person, callback=processIndication, indication=True)
-        except pygatt.exceptions.NotConnectedError:
-            continue_comms = False
-
-        if continue_comms:
-            timestamp = bytearray(pack('<I', int(time.time() - time_offset)))
-            timestamp.insert(0, 2)
+        device = connect_device(ble_address)
+        if device:
+            persondata = []
+            weightdata = []
+            bodydata = []
             try:
-                device.char_write_handle(handle_command, timestamp, wait_for_response=True)
-            except pygatt.exceptions.NotificationTimeout:
-                pass
+                handle_person = device.get_handle(Char_person)
+                handle_weight = device.get_handle(Char_weight)
+                handle_body = device.get_handle(Char_body)
+                handle_command = device.get_handle(Char_command)
+                continue_comms = True
+            except pygatt.exceptions.NotConnectedError:
+                log.warning('Error getting handles')
+                continue_comms = False
+
+            if not continue_comms:
+                continue
+
+            try:
+                device.subscribe(Char_weight, callback=processIndication, indication=True)
+                device.subscribe(Char_body, callback=processIndication, indication=True)
+                device.subscribe(Char_person, callback=processIndication, indication=True)
             except pygatt.exceptions.NotConnectedError:
                 continue_comms = False
 
             if continue_comms:
-                log.info('Waiting for notifications for another 30 seconds')
-                time.sleep(30)
+                timestamp = bytearray(pack('<I', int(time.time() - time_offset)))
+                timestamp.insert(0, 2)
                 try:
-                    device.disconnect()
+                    device.char_write_handle(handle_command, timestamp, wait_for_response=True)
+                except pygatt.exceptions.NotificationTimeout:
+                    pass
                 except pygatt.exceptions.NotConnectedError:
-                    log.info('Could not disconnect...')
+                    continue_comms = False
 
-                log.info('Done receiving data from scale')
-                if persondata and weightdata and bodydata:
-                    weightdatasorted = sorted(weightdata, key=lambda k: k['timestamp'], reverse=True)
-                    appendBmi(persondata[0]['size'], weightdata)
-                    bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
+                if continue_comms:
+                    log.info('Waiting for notifications for another 30 seconds')
+                    time.sleep(30)
+                    try:
+                        device.disconnect()
+                    except pygatt.exceptions.NotConnectedError:
+                        log.info('Could not disconnect...')
 
-                    plugin.execute(config, persondata, weightdatasorted, bodydatasorted)
+                    log.info('Done receiving data from scale')
+                    if persondata and weightdata and bodydata:
+                        weightdatasorted = sorted(weightdata, key=lambda k: k['timestamp'], reverse=True)
+                        appendBmi(persondata[0]['size'], weightdatasorted)
+                        bodydatasorted = sorted(bodydata, key=lambda k: k['timestamp'], reverse=True)
+
+                        plugin.execute(config, persondata, weightdatasorted, bodydatasorted)
