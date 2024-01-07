@@ -164,7 +164,7 @@ def continuous_scan(devname):
         if found:
             log.info(f"{devname} found, proceeding with connection and data handling.")
             break
-        time.sleep(60)  # Adjust as needed for efficient scanning
+        time.sleep(10)  # Adjust as needed for efficient scanning
 
 def scan_for_device(devname):
     try:
